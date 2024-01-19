@@ -20,19 +20,66 @@
  */
 #include<iostream>
 #include<math.h>
+#include<fstream>
 
 int main()
 {
-	// these are the sizes along x direction and y direction
-	int size_x = 20; 
-	int size_y = 10; 
+	// these are the sizes along x direction and y direction, say in meters
+	const float lengthX=2.2;
+	const float lengthY=.41;
 
-	float m=1.;
-	float k=1;	
-	float T=1.;
-	float c = sqrt(3.*k*T/m); // this is like the average velocity (check??!!)
+	const float flow_vel = 0.5; // in m/s so it takes about 11 seconds to flow from one end 
+				    // the other.
+        const float charphysL = 0.05; // this is the radius of 
+					// the cylinder. its a tiny tiny cylinder. 
+					//
+	const float viscosity=0.2e-3; // kinematic viscosity m^2/s;
+				    // I think this is the viscosity of water. 
+				    //
+	std::cout<<charphysL*flow_vel/viscosity<<" = Re \n";
+	// The above values represent what is given to us 
+	// as the system details 
+	//
+	// The reynolds number can be calculated. 
+	//
+	// 	Re = charL * flow_vel / viscosity \approx 100
+	//
+	//
+	//const float Re = 10.; // Reynolds number, how do we fix for diffusion ? I don't know yet
+        const float N = 20.; // Resolution - this is upto us 
+	const float tau = 0.53; // Relaxation time - this is also upto us 
+				//
+	// The above two variables needs to changed to get a stable simulation. 
 
-	float w = 1.; // this is related to updating of the distribution in the collision step
+	const float L = charphysL/N; // this is also delta_x
+	const float c =1.;// sqrt(1./3.); // this is speed of sound ??!! in lattice units.
+			  // we will worry about this later. 
+
+	const float delta_t = 1./3.*(tau-0.5)*L*L/viscosity; 
+
+	std::cout<<flow_vel/(L/delta_t)<<"\n";
+	// average velocity is towards the right 
+	
+	float uox=flow_vel/(L/delta_t);
+	float uoy=0.;
+
+	float cylinder_radius = charphysL/L;
+	int timesteps = 100000;
+
+	std::cout<<L/delta_t<<"\t"<<delta_t<<"\t"<<cylinder_radius<<"\n";;
+	
+	const int size_x = (lengthX+L)/L;
+	const int size_y = (lengthY+L)/L; 
+
+	std::cout<<size_x<<"\t"<<size_y<<"\t"<<size_x*size_y<<"\n";
+
+	//float m=1.;
+	//float k=1;	
+	//float T=1.;
+			       //
+	std::cout<<c<<"\n";
+
+	float w = 1/tau; // this is related to updating of the distribution in the collision step
 
 	// lattice connectivity 
 	int n_connect = 9;
@@ -45,7 +92,7 @@ int main()
 	
 	eq_densities = new float[n_connect*size_x*size_y];
 
-	float * eq_densities = nullptr;
+	float * temp_densities = nullptr;
 	temp_densities = new float[n_connect*size_x*size_y]; // I need these. 
 							  
 	int * solid = nullptr;
@@ -57,22 +104,30 @@ int main()
 	{
 		for(int y=0; y<size_y; y++)
 		{
-			if(y==size_y-1 or y==0)
-			{
-				solid[y*size_x+x]=1.;
-			}
-			else 
+		//	if(y==size_y-1 or y==0)
+		//	{
+		//		solid[y*size_x+x]=1.;
+		//	}
+		//	else 
 				solid[y*size_x+x]=0.;
 		}
 	}
-	for(int n=0; n<n_connect; n++)
+	
+	// insert a circular disk as a obstacle. 
+	
+	// we will position the disk at x=5, y=4 
+	// with a radius 1. 
+	int xo=int(1./5.*size_x);
+	int yo=int(1./2.*size_y);
+	for(int x=0; x<size_x; x++)
 	{
-		for(int x=0; x<size_x; x++)
+		for(int y=0; y<size_x; y++)
 		{
-			for(int y=0; y<size_y; y++)
+			if((x-xo)*(x-xo)+(y-yo)*(y-yo)<pow(cylinder_radius,2))
 			{
-				densities[n*size_x*size_y+y*size_x+x]=1.;
-			}
+				//std::cout<<x<<"\t"<<y<<"\n";
+				solid[y*size_x+x]=1.;
+			}	
 		}
 	}
 
@@ -84,7 +139,7 @@ int main()
 	int * e_vec_x = new int[n_connect];
 	int * e_vec_y = new int[n_connect];
 	
-	int n_opposite = new int[n_connect];
+	int * n_opposite = new int[n_connect];
 
 	n_opposite[0]=0;
 	n_opposite[1]=3;
@@ -139,6 +194,19 @@ int main()
 	weights[7]=1./36.;
 	weights[8]=1./36.;
 
+
+	for(int n=0; n<n_connect; n++)
+	{
+		for(int x=0; x<size_x; x++)
+		{
+			for(int y=0; y<size_y; y++)
+			{
+				float e_dot_u = e_vec_x[n]*uox+e_vec_y[n]*uoy;
+				float u_mod_sq = uox*uox+uoy*uoy;
+				densities[n*size_x*size_y+y*size_x+x]=weights[n]*(1.+(3./c)*e_dot_u+(9./2.)*(e_dot_u/c)*(e_dot_u/c)-(3./2.)*u_mod_sq/(c*c));
+			}
+		}
+	}
 	// we need a few more arrays to store the average velocity 
 	// and the density
 
@@ -147,21 +215,23 @@ int main()
 	float * rho=new float[size_x*size_y];
 	// now we do the simulation 
 
-	int timesteps = 10;
 
+	std::fstream a_vel;
+	std::fstream den_file;
+	std::string filename;
 	for(int t=0; t<timesteps;t++)
 	{
-		// first is the streaming step ??.
 		for(int x=0; x<size_x; x++)
 		{
 			for(int y=0; y<size_y; y++)
 			{
 
+				ux[y*size_x+x]=0.;
+				uy[y*size_x+x]=0.;
+				rho[y*size_x+x]=0.;
 				if(solid[y*size_x+x]==0) 
 				{
-					ux[y*size_x+x]=0.;
-					uy[y*size_x+x]=0.;
-					rho[y*size_x+x]=0.;
+
 					for(int n=0; n<n_connect; n++)
 					{
 						ux[y*size_x+x] = ux[y*size_x+x]+densities[n*size_x*size_y+y*size_x+x]*e_vec_x[n];
@@ -171,13 +241,14 @@ int main()
 					ux[y*size_x+x] = ux[y*size_x+x]/rho[y*size_x+x];
 					uy[y*size_x+x] = uy[y*size_x+x]/rho[y*size_x+x];
 
+
 					// now we compute the equilibrium densities for each site. 
 
 					for(int n=0; n<n_connect; n++)
 					{
 						float e_dot_u = e_vec_x[n]*ux[y*size_x+x]+e_vec_y[n]*uy[y*size_x+x];
 						float u_mod_sq = ux[y*size_x+x]*ux[y*size_x+x]+uy[y*size_x+x]*uy[y*size_x+x];
-						eq_densities[n*size_x*size_y+y*size_x+x]=weights[n]*(1.+(3./c)*e_dot_u+(9./2.)*(e_dot_u/c)*(e_dot_u/c)-(3./.2)*u_mod_sq/(c*c));
+						eq_densities[n*size_x*size_y+y*size_x+x]=weights[n]*(1.+(3./c)*e_dot_u+(9./2.)*(e_dot_u/c)*(e_dot_u/c)-(3./2.)*u_mod_sq/(c*c));
 
 						// now that we have the equilibrium densities we can update the distributions. 
 
@@ -186,6 +257,38 @@ int main()
 				}
 			}
 		}
+		if(t%1000==0)
+		{
+			std::cout<<t<<"\n";
+			filename = "average_velocity_"+std::to_string(t)+".dat";
+			a_vel.open(filename,std::ios::out);
+			filename = "densities_"+std::to_string(t)+".dat";
+			den_file.open(filename,std::ios::out);
+			for(int x=0; x<size_x; x++)
+			{
+				for(int y=0; y<size_y; y++)
+				{
+					den_file<<x<<"\t"<<y<<"\t"<<rho[y*size_x+x]<<"\n";
+					a_vel<<x<<"\t"<<y<<"\t"<<sqrt(ux[y*size_x+x]*ux[y*size_x+x]+uy[y*size_x+x]*uy[y*size_x+x])<<"\n";
+				}
+			}
+			a_vel.close();
+			den_file.close();
+		}
+	  //	for(int n=0; n<n_connect; n++)
+	  //	{
+	  //		//for(int x=0; x<size_x; x++)
+	  //		{
+	  //			for(int y=0; y<size_y; y++)
+	  //			{
+	  //				float e_dot_u = e_vec_x[n]*uox+e_vec_y[n]*uoy;
+	  //				float u_mod_sq = uox*uox+uoy*uoy;
+	  //				temp_densities[n*size_x*size_y+y*size_x]=weights[n]*(1.+(3./c)*e_dot_u+(9./2.)*(e_dot_u/c)*(e_dot_u/c)-(3./2.)*u_mod_sq/(c*c));
+	  //			}
+	  //		}
+	  //	}
+
+		// This is the propogation step
 		for(int x=0; x<size_x; x++)
 		{
 			for(int y=0; y<size_y; y++)
@@ -210,27 +313,48 @@ int main()
 						// 
 						
 						// with the following code we can identify the PBC along x
-						int x_coord,y_coord;
+						int x_coord,y_coord; // x_coord and y_coord represent the coordinates from which we will stream the particles to x,y
 						if(x-e_vec_x[n]==size_x)
 						{
 							x_coord=0;
-							y_coord=y-e_vec_y[n];
+							//y_coord=y-e_vec_y[n];
 						}
 						else if(x-e_vec_x[n]==-1)
 						{
 							x_coord=size_x-1;
-							y_coord=y-e_vec_y[n];
+							//y_coord=y-e_vec_y[n];
 						}
 						else
 						{
 							x_coord=x-e_vec_x[n];
+							//y_coord=y-e_vec_y[n];
+						}
+						if(y-e_vec_y[n]==size_y)
+						{
+							y_coord=0;
+							//y_coord=y-e_vec_y[n];
+						}
+						else if(y-e_vec_y[n]==-1)
+						{
+							y_coord=size_y-1;
+							//y_coord=y-e_vec_y[n];
+						}
+						else
+						{
 							y_coord=y-e_vec_y[n];
+							//y_coord=y-e_vec_y[n];
 						}
 
 						if(solid[y_coord*size_x+x_coord]) // this means we are trying to stream particles from a solid 
 										  // node, which is not possible. 
 						{
-							densities[n*size_x*size_y+y*size_x+x] = temp_densities[n_opposite[n]*size_x*size_y+y*size_x+x];
+							densities[n*size_x*size_y+y*size_x+x] = temp_densities[n_opposite[n]*size_x*size_y+y*size_x+x]; // here we are implementing the half-wall reflection 
+																			// boundary condition 
+																			// Since there are not particles that are streaming from 
+																			// the solid wall, we don't have a value for densities 
+																			// for n_connects from the wall to x,y. 
+																			// So we put those densitiy values as particles which got 
+																			// reflected off the wall (...)
 						}
 						else
 						{
@@ -241,5 +365,12 @@ int main()
 			}
 		}
 	}
+	//for(int x=0; x<size_x; x++)
+	//{
+	//	for(int y=0; y<size_y; y++)
+	//	{
+	//		std::cout<<x<<"\t"<<y<<"\t"<<densities[y*size_x+x]<<"\t"<<solid[y*size_x+x]<<"\n";
+	//	}
+	//}
 	return 0;
 }

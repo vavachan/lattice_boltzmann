@@ -64,8 +64,8 @@ int main()
 	float uoy=0.;
 
 	float cylinder_radius = charphysL/L;
-	int timesteps = 100000;
-	int write_after = 5000;
+	int timesteps = 1000;
+	int write_after = 100;
 
 	std::cout<<L/delta_t<<"\t"<<delta_t<<"\t"<<cylinder_radius<<"\n";;
 	
@@ -265,6 +265,7 @@ int main()
 	}
 	a_vel.close();
 	den_file.close();
+	int domain=size_x*size_y;
 	for(int t=0; t<timesteps;t++)
 	{
 		for(int x=0; x<size_x; x++)
@@ -272,33 +273,33 @@ int main()
 			for(int y=0; y<size_y; y++)
 			{
 
-				ux[y*size_x+x]=0.;
-				uy[y*size_x+x]=0.;
-				rho[y*size_x+x]=0.;
-				if(solid[y*size_x+x]==0) 
+				int pos=y*size_x+x;
+				ux[pos]=0.;
+				uy[pos]=0.;
+				rho[pos]=0.;
+				if(solid[pos]==0) 
 				{
 
 					for(int n=0; n<n_connect; n++)
 					{
-						ux[y*size_x+x] = ux[y*size_x+x]+densities[n*size_x*size_y+y*size_x+x]*e_vec_x[n];
-						uy[y*size_x+x] = uy[y*size_x+x]+densities[n*size_x*size_y+y*size_x+x]*e_vec_y[n];
-						rho[y*size_x+x] = rho[y*size_x+x]+densities[n*size_x*size_y+y*size_x+x];
+						ux[pos] = ux[pos]+densities[n*domain+pos]*e_vec_x[n];
+						uy[pos] = uy[pos]+densities[n*domain+pos]*e_vec_y[n];
+						rho[pos] = rho[pos]+densities[n*domain+pos];
 					}
-					ux[y*size_x+x] = ux[y*size_x+x]/rho[y*size_x+x];
-					uy[y*size_x+x] = uy[y*size_x+x]/rho[y*size_x+x];
+					ux[pos] = ux[pos]/rho[pos];
+					uy[pos] = uy[pos]/rho[pos];
 
 
 					// now we compute the equilibrium densities for each site. 
 
 					for(int n=0; n<n_connect; n++)
 					{
-						float e_dot_u = e_vec_x[n]*ux[y*size_x+x]+e_vec_y[n]*uy[y*size_x+x];
-						float u_mod_sq = ux[y*size_x+x]*ux[y*size_x+x]+uy[y*size_x+x]*uy[y*size_x+x];
-						eq_densities[n*size_x*size_y+y*size_x+x]=rho[y*size_x+x]*weights[n]*(1.+3.*e_dot_u+(9./2.)*(e_dot_u)*(e_dot_u)-(3./2.)*u_mod_sq);
+						float e_dot_u = e_vec_x[n]*ux[pos]+e_vec_y[n]*uy[pos];
+						float u_mod_sq = ux[pos]*ux[pos]+uy[pos]*uy[pos];
 
 						// now that we have the equilibrium densities we can update the distributions. 
 
-						temp_densities[n*size_x*size_y+y*size_x+x] = densities[n*size_x*size_y+y*size_x+x] + w*(eq_densities[n*size_x*size_y+y*size_x+x]-densities[n*size_x*size_y+y*size_x+x]);
+						temp_densities[n*domain+pos] = densities[n*domain+pos] + w*(rho[pos]*weights[n]*(1.+3.*e_dot_u+(9./2.)*(e_dot_u)*(e_dot_u)-(3./2.)*u_mod_sq)-densities[n*domain+pos]);
 					}
 				}
 				else
@@ -307,8 +308,8 @@ int main()
 					// here for each n we replace it with the opposite direction.
 					for(int n=0; n<n_connect; n++)
 					{
-						//temp_densities[n_opposite[n]*size_x*size_y+y*size_x+x] = densities[n*size_x*size_y+y*size_x+x];
-						temp_densities[n*size_x*size_y+y*size_x+x] = densities[n_opposite[n]*size_x*size_y+y*size_x+x];
+						//temp_densities[n_opposite[n]*domain+pos] = densities[n*domain+pos];
+						temp_densities[n*domain+pos] = densities[n_opposite[n]*domain+pos];
 					}
 				}
 			}
@@ -321,7 +322,7 @@ int main()
 	  //			{
 	  //				float e_dot_u = e_vec_x[n]*uox+e_vec_y[n]*uoy;
 	  //				float u_mod_sq = uox*uox+uoy*uoy;
-	  //				temp_densities[n*size_x*size_y+y*size_x]=weights[n]*(1.+(3./c)*e_dot_u+(9./2.)*(e_dot_u/c)*(e_dot_u/c)-(3./2.)*u_mod_sq/(c*c));
+	  //				temp_densities[n*domain+y*size_x]=weights[n]*(1.+(3./c)*e_dot_u+(9./2.)*(e_dot_u/c)*(e_dot_u/c)-(3./2.)*u_mod_sq/(c*c));
 	  //			}
 	  //		}
 	  //	}
@@ -332,6 +333,7 @@ int main()
 			for(int y=0; y<size_y; y++)
 			{
 				//if(solid[y*size_x+x]==0) 
+				int pos=y*size_x+x;
 				{
 					for(int n=0; n<n_connect; n++)
 					{
@@ -402,7 +404,7 @@ int main()
 						//if(solid[y_coord*size_x+x_coord]) // this means we are trying to stream particles from a solid 
 						//				  // node, which is not possible. 
 						//{
-						//	densities[n*size_x*size_y+y*size_x+x] = temp_densities[n_opposite[n]*size_x*size_y+y*size_x+x]; // here we are implementing the half-wall reflection 
+						//	densities[n*domain+y*size_x+x] = temp_densities[n_opposite[n]*domain+y*size_x+x]; // here we are implementing the half-wall reflection 
 						//													// boundary condition 
 						//													// Since there are not particles that are streaming from 
 						//													// the solid wall, we don't have a value for densities 
@@ -412,9 +414,9 @@ int main()
 						//}
 						//else
 					//	{
-					//		//densities[n*size_x*size_y+y*size_x+x]=temp_densities[n*size_x*size_y+y_coord*size_x+x_coord];
+					//		//densities[n*domain+y*size_x+x]=temp_densities[n*domain+y_coord*size_x+x_coord];
 					//	}
-						densities[n*size_x*size_y+y_coord*size_x+x_coord]=temp_densities[n*size_x*size_y+y*size_x+x];
+						densities[n*domain+y_coord*size_x+x_coord]=temp_densities[n*domain+pos];
 					}
 				}
 			}
@@ -433,7 +435,7 @@ int main()
 					den_file<<x*(L)<<"\t"<<y*L<<"\t";
 					for(int n=0;n<n_connect; n++)
 					{
-						den_file<<densities[n*size_x*size_y+y*size_x+x]-weights[n]<<"\t";
+						den_file<<densities[n*domain+y*size_x+x]-weights[n]<<"\t";
 					}
 					den_file<<"\n";
 					a_vel<<x<<"\t"<<y<<"\t"<<sqrt(ux[y*size_x+x]*ux[y*size_x+x]+uy[y*size_x+x]*uy[y*size_x+x])<<"\t"<<ux[y*size_x+x]<<"\t"<<uy[y*size_x+x]<<"\n";

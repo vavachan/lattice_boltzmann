@@ -28,7 +28,7 @@ int main()
 	const float lengthX=2.2;
 	const float lengthY=.41;
 
-	const float flow_vel = 0.5; // in m/s so it takes about 11 seconds to flow from one end 
+	const float flow_vel = 4.0; // in m/s so it takes about 11 seconds to flow from one end 
 				    // the other.
         const float charphysL = 0.05; // this is the radius of 
 					// the cylinder. its a tiny tiny cylinder. 
@@ -45,8 +45,7 @@ int main()
 	// 	Re = charL * flow_vel / viscosity \approx 100
 	//
 	//
-	//const float Re = 10.; // Reynolds number, how do we fix for diffusion ? I don't know yet
-        const float N = 20.; // Resolution - this is upto us 
+        const float N = 100.; // Resolution - this is upto us 
 	const float tau = 0.53; // Relaxation time - this is also upto us 
 				//
 	// The above two variables needs to changed to get a stable simulation. 
@@ -64,8 +63,8 @@ int main()
 	float uoy=0.;
 
 	float cylinder_radius = charphysL/L;
-	int timesteps = 1000;
-	int write_after = 100;
+	int timesteps = 110000;
+	int write_after = 500;
 
 	std::cout<<L/delta_t<<"\t"<<delta_t<<"\t"<<cylinder_radius<<"\n";;
 	
@@ -210,7 +209,7 @@ int main()
 		//int x=0;
 		for(int y=0; y<size_y; y++)
 		{
-			if(solid[y*size_x+x]==0)
+			//if(solid[y*size_x+x]==0)
 			{
 				for(int n=0; n<n_connect; n++)
 				{
@@ -314,18 +313,18 @@ int main()
 				}
 			}
 		}
-	  //	for(int n=0; n<n_connect; n++)
-	  //	{
-	  //		//for(int x=0; x<size_x; x++)
-	  //		{
-	  //			for(int y=0; y<size_y; y++)
-	  //			{
-	  //				float e_dot_u = e_vec_x[n]*uox+e_vec_y[n]*uoy;
-	  //				float u_mod_sq = uox*uox+uoy*uoy;
-	  //				temp_densities[n*domain+y*size_x]=weights[n]*(1.+(3./c)*e_dot_u+(9./2.)*(e_dot_u/c)*(e_dot_u/c)-(3./2.)*u_mod_sq/(c*c));
-	  //			}
-	  //		}
-	  //	}
+	  	for(int n=0; n<n_connect; n++)
+	  	{
+	  		//for(int x=0; x<size_x; x++)
+	  		{
+	  			for(int y=0; y<size_y; y++)
+	  			{
+	  				float e_dot_u = e_vec_x[n]*uox+e_vec_y[n]*uoy;
+	  				float u_mod_sq = uox*uox+uoy*uoy;
+	  				temp_densities[n*domain+y*size_x]=weights[n]*(1.+(3./c)*e_dot_u+(9./2.)*(e_dot_u/c)*(e_dot_u/c)-(3./2.)*u_mod_sq/(c*c));
+	  			}
+	  		}
+	  	}
 
 		// This is the propogation step
 		for(int x=0; x<size_x; x++)
@@ -423,7 +422,7 @@ int main()
 		}
 		if(t%write_after==0)
 		{
-			std::cout<<t<<"\n";
+			//std::cout<<t<<"\n";
 			filename = "average_velocity_"+std::to_string(t)+".dat";
 			a_vel.open(filename,std::ios::out);
 			filename = "densities_"+std::to_string(t)+".dat";

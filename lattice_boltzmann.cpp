@@ -24,50 +24,49 @@
 
 int main()
 {
-	// these are the sizes along x direction and y direction, say in meters
-	const float lengthX=2.2;
-	const float lengthY=.41;
+	/* These are the simulation systems 
+	 * parameters in SI units 
+	 *
+	 * These are given to us. 
+	 */
+	const float lengthX=0.1;
+	const float lengthY=0.05;
 
-	const float flow_vel = 4.0; // in m/s so it takes about 11 seconds to flow from one end 
-				    // the other.
-        const float charphysL = 0.05; // this is the radius of 
-					// the cylinder. its a tiny tiny cylinder. 
-					//
-	const float viscosity=0.2e-3; // kinematic viscosity m^2/s;
-				    // I think this is the viscosity of water. 
-				    //
-	std::cout<<charphysL*flow_vel/viscosity<<" = Re \n";
-	// The above values represent what is given to us 
-	// as the system details 
-	//
+	const float flow_vel = 8.0; // in m/s 
+        const float charphysL = 0.01; // this is the radius of the cylinder
+	const float viscosity=0.2e-4; // kinematic viscosity m^2/s;
+
 	// The reynolds number can be calculated. 
 	//
 	// 	Re = charL * flow_vel / viscosity \approx 100
 	//
 	//
+	std::cout<<"Reynolds Number (Re) = "<<charphysL*flow_vel/viscosity<<"\n"; // Reynolds number
+
+	/* Now we define the values of delta_x and tau 
+	 * These two values will fix all the parameters in the system
+	 */
+
         const float N = 100.; // Resolution - this is upto us 
-	const float tau = 0.53; // Relaxation time - this is also upto us 
-				//
+	const float tau = 0.5001; // Relaxation time - this is also upto us 
 	// The above two variables needs to changed to get a stable simulation. 
 
 	const float L = charphysL/N; // this is also delta_x
-	const float c =1.;// sqrt(1./3.); // this is speed of sound ??!! in lattice units.
-			  // we will worry about this later. 
 
 	const float delta_t = 1./3.*(tau-0.5)*L*L/viscosity; 
 
-	std::cout<<flow_vel/(L/delta_t)<<"\n";
+	std::cout<<"Flow velocity in Lattice units = "<<flow_vel/(L/delta_t)<<"\n";
 	// average velocity is towards the right 
 	
 	float uox=flow_vel/(L/delta_t);
 	float uoy=0.;
 
 	float cylinder_radius = charphysL/L;
-	int timesteps = 110000;
-	int write_after = 500;
+	int timesteps = 8100000;
+	int write_after = 1000;
 
-	std::cout<<L/delta_t<<"\t"<<delta_t<<"\t"<<cylinder_radius<<"\n";;
-	
+	std::cout<<"L_v="<<L/delta_t<<"\ndelta_t="<<delta_t<<"\n";//<<cylinder_radius<<"\n";;
+	std::cout<<"total_time in (s) = "<<timesteps*delta_t<<"\n";	
 	const int size_x = (lengthX+L)/L;
 	const int size_y = (lengthY+L)/L; 
 
@@ -114,9 +113,6 @@ int main()
 	}
 	
 	// insert a circular disk as a obstacle. 
-	
-	// we will position the disk at x=5, y=4 
-	// with a radius 1. 
 	int xo=int(1./5.*size_x);
 	int yo=int(1./2.*size_y);
 	int n_solid=0;
@@ -321,7 +317,7 @@ int main()
 	  			{
 	  				float e_dot_u = e_vec_x[n]*uox+e_vec_y[n]*uoy;
 	  				float u_mod_sq = uox*uox+uoy*uoy;
-	  				temp_densities[n*domain+y*size_x]=weights[n]*(1.+(3./c)*e_dot_u+(9./2.)*(e_dot_u/c)*(e_dot_u/c)-(3./2.)*u_mod_sq/(c*c));
+	  				temp_densities[n*domain+y*size_x]=weights[n]*(1.+(3.)*e_dot_u+(9./2.)*(e_dot_u)*(e_dot_u)-(3./2.)*u_mod_sq);
 	  			}
 	  		}
 	  	}
@@ -336,21 +332,6 @@ int main()
 				{
 					for(int n=0; n<n_connect; n++)
 					{
-						// 		* This was written for half-bounce-back**
-						// Now that we have the updated densities, we can stream the particles. 
-						//
-						// n'th connect indicates the velocity direction. 
-						// suppose there was N particles moving in (e_x,e_y) direction at (x,y)
-						// These particles will now go from (x,y) to (x+e_x,y+e_y) lattice site. 	
-						// so all that happens in densities at (x+e_x,y+e_y) gets replaced by the one 
-						// at (x,y) [for the nth direction].
-						//
-						// This is also where we will deal with the boundary conditions. 
-						//
-						// In this geometry let us consider the top and the bottom borders being 
-						// made of bounce back boundaries and the left and right side with 
-						// periodic boundary conditions.
-						//
 
 						/*
 						 * 		THIS IS FOR Full_BOUNCE_BACK
@@ -400,21 +381,6 @@ int main()
 							//y_coord=y-e_vec_y[n];
 						}
 
-						//if(solid[y_coord*size_x+x_coord]) // this means we are trying to stream particles from a solid 
-						//				  // node, which is not possible. 
-						//{
-						//	densities[n*domain+y*size_x+x] = temp_densities[n_opposite[n]*domain+y*size_x+x]; // here we are implementing the half-wall reflection 
-						//													// boundary condition 
-						//													// Since there are not particles that are streaming from 
-						//													// the solid wall, we don't have a value for densities 
-						//													// for n_connects from the wall to x,y. 
-						//													// So we put those densitiy values as particles which got 
-						//													// reflected off the wall (...)
-						//}
-						//else
-					//	{
-					//		//densities[n*domain+y*size_x+x]=temp_densities[n*domain+y_coord*size_x+x_coord];
-					//	}
 						densities[n*domain+y_coord*size_x+x_coord]=temp_densities[n*domain+pos];
 					}
 				}
@@ -422,7 +388,7 @@ int main()
 		}
 		if(t%write_after==0)
 		{
-			//std::cout<<t<<"\n";
+			std::cout<<t<<"\n";
 			filename = "average_velocity_"+std::to_string(t)+".dat";
 			a_vel.open(filename,std::ios::out);
 			filename = "densities_"+std::to_string(t)+".dat";
